@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DataPulse — Performance Intelligence</title>
+  <link rel="icon" href="data:,">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<div class="dp-shell">
+
+  <!-- Topbar -->
+  <header class="dp-topbar">
+    <div class="dp-brand">
+      <div class="dp-logo-mark">D</div>
+      <strong>DATAPULSE</strong>
+      <span>performance intelligence</span>
+    </div>
+    <div class="dp-topbar-meta">
+      <!-- Data source badge (shown when data loaded) -->
+      <div id="dataSourceBadge" style="display:none;align-items:center;gap:8px">
+        <span class="dp-live-dot" id="sourceDot"></span>
+        <span id="sourceLabel" style="font-size:12px;color:#94a3b8"></span>
+      </div>
+      <!-- Auto-refresh control (shown only for Google Sheets) -->
+      <div class="refresh-ctrl" id="refreshCtrl" style="display:none">
+        <span class="refresh-live-dot" id="refreshDot"></span>
+        <span class="refresh-label" id="refreshCountdown">60s</span>
+        <button class="refresh-btn" id="refreshNow" title="Refresh now">↻</button>
+        <button class="refresh-btn" id="refreshToggle" title="Pause auto-refresh">⏸</button>
+        <select class="refresh-interval" id="refreshIntervalSel">
+          <option value="30">30s</option>
+          <option value="60" selected>1 min</option>
+          <option value="300">5 min</option>
+          <option value="600">10 min</option>
+        </select>
+      </div>
+      <span id="dpClock" style="font-variant-numeric:tabular-nums;font-size:12px"></span>
+    </div>
+  </header>
+
+  <div class="dp-layout">
+
+    <!-- Sidebar -->
+    <aside class="dp-sidebar">
+      <div class="dp-sidebar-label">Workspace</div>
+      <div class="dp-sidebar-title">Revenue Analytics</div>
+
+      <nav class="dp-nav">
+        <button class="dp-nav-item active" data-view="tva">
+          <span class="dp-nav-tag">TVA</span>
+          <div>
+            <strong>Targets vs Achievement</strong>
+            <small>Live performance</small>
+          </div>
+        </button>
+        <button class="dp-nav-item" data-view="ty">
+          <span class="dp-nav-tag">TY</span>
+          <div>
+            <strong>This Year</strong>
+            <small>FY current</small>
+          </div>
+        </button>
+        <button class="dp-nav-item" data-view="ly">
+          <span class="dp-nav-tag">LY</span>
+          <div>
+            <strong>Last Year</strong>
+            <small>YoY comparison</small>
+          </div>
+        </button>
+      </nav>
+
+      <!-- Hero connect buttons (shown when no data) -->
+      <div id="sidebarHeroActions" style="padding:16px 12px;display:none;flex-direction:column;gap:8px">
+        <button class="btn btn-primary" id="btnSheets" style="font-size:12px;justify-content:flex-start;gap:8px">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18"/></svg>
+          Google Sheets
+        </button>
+        <button class="btn btn-secondary" id="btnMetabase" style="font-size:12px;justify-content:flex-start;gap:8px">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>
+          Metabase
+        </button>
+        <button class="btn btn-ghost" id="btnDemo" style="font-size:12px">Try Demo →</button>
+      </div>
+
+      <div class="dp-sidebar-foot" id="sidebarFoot" style="display:none">
+        <span>Data source</span>
+        <strong id="sidebarSourceName">—</strong>
+        <small id="sidebarSourceMeta"></small>
+      </div>
+    </aside>
+
+    <!-- Main content -->
+    <main class="dp-main" id="dpMain">
+
+      <!-- Hero (shown when no data) -->
+      <section class="dp-hero" id="heroSection">
+        <div class="hero-glow hero-glow-1"></div>
+        <div class="hero-glow hero-glow-2"></div>
+        <div class="hero-content">
+          <div class="hero-badge">Smart Analytics</div>
+          <h1 class="hero-title">Your data,<br><span class="gradient-text">beautifully clear.</span></h1>
+          <p class="hero-subtitle">Loading your configured Google Sheets and building the live formula summary.</p>
+          <div class="hero-actions" style="display:none">
+            <button class="btn btn-ghost btn-lg" id="btnDemoNav">Try Demo Data →</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Dashboard (shown when data loaded) -->
+      <div id="dashboard" style="display:none">
+
+        <!-- Page head -->
+        <section class="dp-page-head">
+          <div>
+            <div class="dp-eyebrow" id="dpEyebrow">Live performance intelligence</div>
+            <h1 id="dpViewTitle">Targets vs Achievement</h1>
+            <p id="dpViewDesc">Plan, actuals, AOV and YoY. Explore performance, compare leaders and export detailed views.</p>
+          </div>
+          <div class="dp-head-actions">
+            <span class="section-meta" id="dataSourceInfo"></span>
+            <button class="btn btn-ghost btn-sm" id="btnCustomize" style="display:none">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/><circle cx="8" cy="6" r="2" fill="currentColor" stroke="none"/><circle cx="16" cy="12" r="2" fill="currentColor" stroke="none"/><circle cx="8" cy="18" r="2" fill="currentColor" stroke="none"/></svg>
+              Customize
+              <span class="fp-active-badge" id="fpActiveBadge" style="display:none"></span>
+            </button>
+          </div>
+        </section>
+
+        <!-- Date filter + leader filter bar -->
+        <section class="dp-filter-bar" id="filterBar">
+          <span class="dp-filter-label">Date range</span>
+          <div class="dp-date-inputs">
+            <input type="date" class="dp-date-input" id="dateFrom" title="From date">
+            <span style="color:#475569;font-size:11px">to</span>
+            <input type="date" class="dp-date-input" id="dateTo" title="To date">
+            <button class="btn btn-ghost btn-sm" id="dateClear" style="padding:4px 8px;font-size:11px">Clear</button>
+          </div>
+          <div class="dp-filter-sep"></div>
+          <!-- Leader filter chips (shown when data has Leader column) -->
+          <div id="leaderSection" style="display:none">
+            <div class="leader-chips" id="leaderChips"></div>
+          </div>
+          <!-- Metric selector -->
+          <div class="metric-selector-wrap" id="metricSelectorWrap" style="display:none">
+            <select id="metricSelect" class="metric-select"></select>
+          </div>
+          <!-- Chart type -->
+          <div class="chart-controls" style="margin-left:auto">
+            <button class="chip chip-active" data-chart="bar">Bar</button>
+            <button class="chip" data-chart="line">Line</button>
+          </div>
+        </section>
+
+        <!-- Sheet switcher tabs (for multi-sheet workbooks) -->
+        <div class="sheet-switcher-wrap" id="sheetTabsWrap" style="display:none">
+          <span class="sheet-switcher-label">Sheets</span>
+          <div class="sheet-tabs" id="sheetTabs"></div>
+        </div>
+
+        <div class="report-tabs" id="reportTabs">
+          <button class="report-tab active" data-report="tva">📊 TVA</button>
+          <button class="report-tab" data-report="month">🗓️ Month-wise</button>
+          <button class="report-tab" data-report="lyty">📈 LY vs TY</button>
+          <button class="report-tab" data-report="aov">💎 AOV</button>
+          <button class="report-tab" data-report="typeAov">🏷️ Type-wise AOV</button>
+          <button class="report-tab" data-report="generic">📖 Generic Name</button>
+          <button class="report-tab" data-report="batch">📦 Batch AOV</button>
+          <button class="report-tab" data-report="dod">🧮 DOD Trend</button>
+          <button class="report-tab" data-report="edtech">🎓 Edtech</button>
+          <button class="report-tab report-tab-save" id="saveReportPng">Save PNG</button>
+        </div>
+
+        <!-- KPI row (oracle-style 7 cards) -->
+        <section class="dp-kpi-row" id="kpiGrid">
+          <div class="dp-kpi-card" data-accent="violet">
+            <div class="dp-kpi-label">Loading…</div>
+            <div class="dp-kpi-value">—</div>
+          </div>
+        </section>
+
+        <!-- Customize / Filter Panel -->
+        <section class="section fp-section-wrap" id="filterSection" style="display:none">
+          <div class="section-header">
+            <div class="fp-header-left">
+              <h2 class="section-title">Customize View</h2>
+              <span class="fp-result-count" id="fpResultCount"></span>
+            </div>
+            <button class="btn btn-ghost btn-sm" id="fpResetAll">↺ Reset All</button>
+          </div>
+          <div class="fp-grid">
+            <!-- Quick Rank -->
+            <div class="fp-card">
+              <div class="fp-card-title">Quick Rank</div>
+              <div class="fp-pills" id="fpModes">
+                <button class="fp-pill active" data-mode="all">All rows</button>
+                <button class="fp-pill" data-mode="top">Top ↑</button>
+                <button class="fp-pill" data-mode="bottom">Bottom ↓</button>
+              </div>
+              <div class="fp-rank-detail" id="fpRankDetail" style="display:none">
+                <div class="fp-rank-row">
+                  <span class="fp-text">Show</span>
+                  <input type="number" id="fpN" value="5" min="1" max="100" class="fp-num-input">
+                  <span class="fp-text">rows by</span>
+                </div>
+                <select id="fpMetric" class="fp-select-full"></select>
+                <div class="fp-rank-row" style="margin-top:8px">
+                  <span class="fp-text">Group by</span>
+                  <select id="fpGroupBy" class="fp-select">
+                    <option value="category">Category</option>
+                    <option value="leader">Leader</option>
+                    <option value="row">Individual rows</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+            <!-- Leaders -->
+            <div class="fp-card" id="fpLeaderCard">
+              <div class="fp-card-title">
+                Leaders
+                <span class="fp-card-actions">
+                  <button class="fp-tiny" id="fpLeadersAll">All</button>
+                  <button class="fp-tiny" id="fpLeadersNone">None</button>
+                </span>
+              </div>
+              <div class="fp-checks" id="fpLeaderChecks"></div>
+            </div>
+            <!-- Categories -->
+            <div class="fp-card" id="fpCatCard">
+              <div class="fp-card-title">
+                Categories
+                <span class="fp-card-actions">
+                  <button class="fp-tiny" id="fpCatAll">All</button>
+                  <button class="fp-tiny" id="fpCatNone">None</button>
+                </span>
+              </div>
+              <div class="fp-checks" id="fpCatChecks"></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Sub-tabs -->
+        <div class="dp-subtabs" id="dpSubtabs">
+          <button class="dp-subtab active" data-subtab="overview">Overview</button>
+          <button class="dp-subtab" data-subtab="charts">Visualizations</button>
+          <button class="dp-subtab" data-subtab="table">Data Table</button>
+          <button class="dp-subtab" data-subtab="chat">Ask AI</button>
+        </div>
+
+        <!-- Sub-tab: Overview (report tabs) -->
+        <div class="dp-tab-panel" id="tab-overview">
+          <div id="reportContent"></div>
+        </div>
+
+        <!-- Sub-tab: Visualizations (existing charts) -->
+        <div class="dp-tab-panel" id="tab-charts" style="display:none">
+          <div class="charts-grid">
+            <div class="chart-card chart-card-wide">
+              <div class="chart-card-header">
+                <span class="chart-title" id="mainChartTitle">Category Comparison</span>
+              </div>
+              <div class="chart-wrap">
+                <canvas id="mainChart"></canvas>
+              </div>
+            </div>
+            <div class="chart-card">
+              <div class="chart-card-header">
+                <span class="chart-title" id="distChartTitle">Distribution</span>
+              </div>
+              <div class="chart-wrap chart-wrap-sm">
+                <canvas id="distChart"></canvas>
+              </div>
+            </div>
+            <div class="chart-card chart-card-full">
+              <div class="chart-card-header">
+                <span class="chart-title" id="trendChartTitle">Trend</span>
+              </div>
+              <div class="chart-wrap">
+                <canvas id="trendChart"></canvas>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Sub-tab: Data Table -->
+        <div class="dp-tab-panel" id="tab-table" style="display:none">
+          <div class="section-header" style="margin-bottom:16px">
+            <h2 class="section-title">Data</h2>
+            <div class="table-controls">
+              <div class="search-box">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+                <input type="text" id="tableSearch" placeholder="Search…" autocomplete="off">
+              </div>
+              <span class="row-count" id="rowCount"></span>
+            </div>
+          </div>
+          <div class="table-card">
+            <div class="table-wrap">
+              <table id="dataTable">
+                <thead id="tableHead"></thead>
+                <tbody id="tableBody"></tbody>
+              </table>
+            </div>
+            <div class="table-footer">
+              <button class="btn btn-ghost btn-sm" id="prevPage" disabled>← Prev</button>
+              <span class="page-info" id="pageInfo"></span>
+              <button class="btn btn-ghost btn-sm" id="nextPage">Next →</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Sub-tab: Ask AI -->
+        <div class="dp-tab-panel" id="tab-chat" style="display:none">
+          <div class="section-header" style="margin-bottom:16px">
+            <div>
+              <h2 class="section-title">Ask AI</h2>
+              <p class="section-subtitle">Ask plain-English questions about your data</p>
+            </div>
+            <div class="ai-badge">
+              <span class="ai-dot"></span>
+              <span id="aiStatus">AI</span>
+            </div>
+          </div>
+          <div class="qa-card">
+            <div class="chat-messages" id="chatMessages">
+              <div class="chat-welcome">
+                <div class="chat-welcome-icon">◈</div>
+                <p>Hi! Load your data and I'll help you uncover insights. Try asking:</p>
+                <div class="chat-suggestions">
+                  <button class="suggestion" data-q="What are the top 5 rows by the highest numeric value?">Top 5 by value</button>
+                  <button class="suggestion" data-q="Give me a summary of this dataset — totals, averages, and key trends.">Dataset summary</button>
+                  <button class="suggestion" data-q="Which category or group has the highest total?">Best performing group</button>
+                </div>
+              </div>
+            </div>
+            <div class="chat-input-wrap">
+              <input type="text" id="chatInput" placeholder="Ask a question about your data…" autocomplete="off">
+              <button class="btn btn-primary" id="chatSend">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m22 2-7 20-4-9-9-4 20-7z"/></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- /dashboard -->
+    </main>
+  </div>
+</div><!-- /dp-shell -->
+
+<!-- Google Sheets Modal -->
+<div class="modal-backdrop" id="sheetsModal" style="display:none">
+  <div class="modal">
+    <button class="modal-close" data-close="sheetsModal">✕</button>
+    <div class="modal-icon modal-icon-green">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18"/></svg>
+    </div>
+    <h3 class="modal-title">Connect Google Sheets</h3>
+    <p class="modal-desc">Paste the URL of a public Google Sheet. The sheet must be shared as "Anyone with the link can view".</p>
+    <label class="field-label">Sheet URL</label>
+    <input type="url" class="field-input" id="sheetsUrl" placeholder="https://docs.google.com/spreadsheets/d/…">
+    <div class="modal-error" id="sheetsError"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" data-close="sheetsModal">Cancel</button>
+      <button class="btn btn-primary" id="sheetsConnect">Connect →</button>
+    </div>
+  </div>
+</div>
+
+<!-- Metabase Modal -->
+<div class="modal-backdrop" id="metabaseModal" style="display:none">
+  <div class="modal">
+    <button class="modal-close" data-close="metabaseModal">✕</button>
+    <div class="modal-icon modal-icon-blue">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>
+    </div>
+    <h3 class="modal-title">Connect Metabase</h3>
+    <p class="modal-desc">Enter your Metabase instance details and the question (card) ID you want to visualize.</p>
+    <label class="field-label">Metabase URL</label>
+    <input type="url" class="field-input" id="mbUrl" placeholder="https://metabase.yourcompany.com">
+    <label class="field-label">Session Token</label>
+    <input type="password" class="field-input" id="mbToken" placeholder="Obtain via POST /api/session">
+    <label class="field-label">Question ID</label>
+    <input type="number" class="field-input" id="mbQuestionId" placeholder="42">
+    <div class="modal-error" id="metabaseError"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" data-close="metabaseModal">Cancel</button>
+      <button class="btn btn-primary" id="metabaseConnect">Connect →</button>
+    </div>
+  </div>
+</div>
+
+<!-- Loading overlay -->
+<div class="loading-overlay" id="loadingOverlay" style="display:none">
+  <div class="loading-card">
+    <div class="spinner"></div>
+    <p id="loadingText">Loading data…</p>
+  </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>

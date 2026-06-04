@@ -1,0 +1,26 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(Stop-Process -Name \"node\" -Force -ErrorAction SilentlyContinue)",
+      "PowerShell(Start-Process -FilePath \"node\" -ArgumentList \"server.js\" -WorkingDirectory \"D:\\\\Dasbord\" -WindowStyle Hidden)",
+      "PowerShell(\"Server restarted\")",
+      "mcp__Claude_Preview__preview_start",
+      "mcp__Claude_in_Chrome__tabs_context_mcp",
+      "PowerShell($meta = Invoke-RestMethod \"http://localhost:3000/api/sheets/meta?url=https%3A%2F%2Fdocs.google.com%2Fspreadsheets%2Fd%2F1n7Oa_VUsW7UvAMHaCA545Fs7I2jni8-2ODQyuAsqZPI%2Fedit%3Fgid%3D0%23gid%3D0\"; $meta.sheets | ForEach-Object { $_.name })",
+      "PowerShell($csv = Invoke-RestMethod \"http://localhost:3000/api/sheets?url=https%3A%2F%2Fdocs.google.com%2Fspreadsheets%2Fd%2F1n7Oa_VUsW7UvAMHaCA545Fs7I2jni8-2ODQyuAsqZPI%2Fedit%3Fgid%3D0%23gid%3D0&sheet=Sheet1\"; $rows = $csv -split \"`n\"; for\\($i=0; $i -lt [Math]::Min\\(8,$rows.Length\\); $i++\\) { Write-Host \"ROW $i : $\\($rows[$i].Substring\\(0, [Math]::Min\\(200, $rows[$i].Length\\)\\)\\)\" })",
+      "Bash(node -e ' *)",
+      "WebFetch(domain:oracle-app-ten.vercel.app)",
+      "WebSearch",
+      "Bash(curl -s \"https://oracle-app-ten.vercel.app/\")",
+      "Bash(curl -s \"https://oracle-app-ten.vercel.app/_next/static/chunks/app/page-ded9e01ba00e7dcb.js?dpl=dpl_9kJeoiijCB3UGaGg8gRwpqpDEFw9\")",
+      "Bash(curl -s \"https://oracle-app-ten.vercel.app/_next/static/chunks/23-fe636bd8a11d7fcc.js?dpl=dpl_9kJeoiijCB3UGaGg8gRwpqpDEFw9\")",
+      "Bash(curl -s \"https://oracle-app-ten.vercel.app/_next/static/chunks/fd9d1056-37f891d0493c90e5.js?dpl=dpl_9kJeoiijCB3UGaGg8gRwpqpDEFw9\")",
+      "Bash(curl -s \"https://oracle-app-ten.vercel.app/_next/static/chunks/webpack-cff98b75fb3a8e68.js?dpl=dpl_9kJeoiijCB3UGaGg8gRwpqpDEFw9\")",
+      "Bash(curl -s \"https://oracle-app-ten.vercel.app/_next/static/chunks/858-06c8f16c74a51d4b.js?dpl=dpl_9kJeoiijCB3UGaGg8gRwpqpDEFw9\" -o \"D:/Dasbord/chunk858.js\")",
+      "Bash(curl -s \"https://oracle-app-ten.vercel.app/_next/static/chunks/102-76c6b05d902109e2.js?dpl=dpl_9kJeoiijCB3UGaGg8gRwpqpDEFw9\" -o \"D:/Dasbord/chunk102.js\")",
+      "Bash(node --check D:\\\\Dasbord\\\\app.js)",
+      "Bash(Get-ChildItem -Path \"D:\\\\GitHub\\\\oracle-app\" -Recurse -Force)",
+      "Bash(Select-Object -First 100 FullName)"
+    ]
+  }
+}
