@@ -2420,3 +2420,89 @@ select option {
   color: #111827 !important;
   background: #ffffff !important;
 }
+
+/* Thin, centered sheet-style tables with full-height section dividers */
+.dp-tva-table,
+#dataTable {
+  font-size: 12px !important;
+}
+
+.dp-tva-table th,
+.dp-tva-table td,
+#dataTable th,
+#dataTable td {
+  text-align: center !important;
+  vertical-align: middle !important;
+}
+
+.dp-tva-table .report-group-row th,
+#dataTable .report-group-row th,
+.dp-tva-table .th-group {
+  padding: 6px 8px !important;
+  font-size: 10px !important;
+  font-weight: 850 !important;
+  border-right: 1px solid #d4e3f7 !important;
+}
+
+.dp-tva-table .report-sub-row th,
+#dataTable .report-sub-row th,
+.dp-tva-table .th-sub,
+#dataTable th {
+  padding: 8px 9px !important;
+  font-size: 10px !important;
+  font-weight: 850 !important;
+  border-right: 1px solid rgba(255, 255, 255, 0.18) !important;
+}
+
+.dp-tva-table td,
+#dataTable td {
+  padding: 8px 9px !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  border-right: 1px solid #e5edf6 !important;
+  border-bottom: 1px solid #e5edf6 !important;
+}
+
+.dp-tva-table td.sticky,
+.dp-tva-table td.sticky-col,
+.dp-tva-table td.sticky-col-2,
+#dataTable td.sticky-col,
+#dataTable td.sticky-col-2 {
+  text-align: center !important;
+  font-weight: 700 !important;
+}
+
+.dp-tva-table .sep-left,
+#dataTable .sep-left,
+.dp-tva-table th.sep-left,
+.dp-tva-table td.sep-left,
+#dataTable th.sep-left,
+#dataTable td.sep-left,
+.dp-tva-table .report-group-cell.sep-left,
+#dataTable .report-group-cell.sep-left {
+  border-left: 2px solid #f59e0b !important;
+}
+
+.dp-tva-table th.sep-left,
+#dataTable th.sep-left {
+  box-shadow: inset 2px 0 0 #f59e0b !important;
+}
+
+.dp-tva-table td.sep-left,
+#dataTable td.sep-left {
+  box-shadow: inset 2px 0 0 #f59e0b !important;
+}
+
+.ytd-mode-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 8px 2px 0;
+}
+
+.ytd-mode-wrap .metric-select {
+  width: 76px;
+  min-width: 76px;
+  height: 32px;
+  font-weight: 900;
+}

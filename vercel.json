@@ -3,13 +3,38 @@
   "builds": [
     {
       "src": "server.js",
-      "use": "@vercel/node"
+      "use": "@vercel/node",
+      "config": {
+        "includeFiles": [
+          "index.html",
+          "styles.css",
+          "app.js",
+          "fd9d.js",
+          "chunk23.js",
+          "chunk102.js",
+          "chunk858.js",
+          "webpack.js",
+          "102.76c6b05d902109e2.js",
+          "102-76c6b05d902109e2.js",
+          "424.c15477e4cf3b1127.js",
+          "424-c15477e4cf3b1127.js",
+          "59.a5b5cd4927e573c4.js",
+          "59-a5b5cd4927e573c4.js",
+          "777.e794946cc961c345.js",
+          "777-e794946cc961c345.js",
+          "858.06c8f16c74a51d4b.js",
+          "858-06c8f16c74a51d4b.js",
+          "884.b34606a5abeb6e35.js",
+          "884-b34606a5abeb6e35.js",
+          "light-dashboard-check.png"
+        ]
+      }
     }
   ],
   "routes": [
     {
       "src": "/(.*)",
-      "dest": "server.js"
+      "dest": "/server.js"
     }
   ]
 }

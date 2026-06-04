@@ -14,6 +14,7 @@ const state = {
   sourceLabel:  '',
   sourceMode:   '',
   activeReport: 'tva',
+  ytdMode:      'AY',
   reportMeta:   {},
   sheetsUrl:    '',
   sheetList:    [],
@@ -417,6 +418,7 @@ function loadData({ headers, rows, label }) {
 
   initLeaderFilter();
   initFilterPanel();
+  updateYtdModeControl();
   renderOracleKPIs();
   renderCharts();
   renderTable();
@@ -1404,6 +1406,8 @@ function renderTable() {
     const classes = [];
     if (i === state.leaderCol) classes.push('sticky-col');
     if (i === catIdx) classes.push('sticky-col-2');
+    const sectionClass = tableSectionClass(headers, i);
+    if (sectionClass) classes.push(sectionClass);
     if (isNumeric(headers[i])) classes.push('numeric');
     return classes.join(' ');
   };
@@ -2036,15 +2040,23 @@ async function loadConfiguredSummary({ silent = false, restartRefresh = true } =
 
     hideLoading();
     state.lastRefreshed = Date.now();
+    const rawSummary = {
+      headers: result.headers,
+      rows: result.rows,
+      totalRow: result.totalRow,
+    };
     state.reportMeta = {
       exactSummary: true,
       computed,
+      rawSummary,
       totalRow: result.totalRow,
       period: AUTO_SUMMARY_CONFIG.period,
     };
+    const adjusted = applyYtdModeToSummary(rawSummary, state.ytdMode);
+    state.reportMeta.totalRow = adjusted.totalRow;
     loadData({
-      headers: result.headers,
-      rows: result.rows,
+      headers: adjusted.headers,
+      rows: adjusted.rows,
       label: AUTO_SUMMARY_CONFIG.label,
     });
 
@@ -3418,6 +3430,227 @@ function targetTypeIndex(headers) {
   const finance = reportFindLoose(headers, 'finance category');
   return finance >= 0 ? finance : reportFind(headers, 'Type');
 }
+function isYtdSummary(headers) {
+  return reportFind(headers, 'AY/FY') >= 0 && reportFindLoose(headers, 'aop', 'ytd', 'gross') >= 0;
+}
+function findSummaryCol(headers, terms, exclude = []) {
+  return headers.findIndex(h => {
+    const low = String(h || '').toLowerCase();
+    return terms.every(t => low.includes(t.toLowerCase())) &&
+      exclude.every(t => !low.includes(t.toLowerCase()));
+  });
+}
+function findSummaryCols(headers, terms, exclude = []) {
+  return headers
+    .map((h, i) => ({ h, i }))
+    .filter(({ h }) => {
+      const low = String(h || '').toLowerCase();
+      return terms.every(t => low.includes(t.toLowerCase())) &&
+        exclude.every(t => !low.includes(t.toLowerCase()));
+    })
+    .map(x => x.i);
+}
+function findSummaryColAfter(headers, terms, afterIndex, exclude = []) {
+  return headers.findIndex((h, i) => {
+    if (i <= afterIndex) return false;
+    const low = String(h || '').toLowerCase();
+    return terms.every(t => low.includes(t.toLowerCase())) &&
+      exclude.every(t => !low.includes(t.toLowerCase()));
+  });
+}
+function findPlainYtdCols(headers, label) {
+  const re = new RegExp(`^${label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?: \\(\\d+\\))?$`, 'i');
+  return headers.map((h, i) => ({ h, i })).filter(({ h }) => re.test(String(h || '').trim())).map(x => x.i);
+}
+function formatOneDecimal(n) {
+  return Number.isFinite(n) ? parseFloat(n.toFixed(1)) : '';
+}
+function formatWhole(n) {
+  return Number.isFinite(n) ? Math.round(n).toLocaleString() : '';
+}
+function formatPctValue(num, den) {
+  return den > 0 ? `${((num / den) * 100).toFixed(1)}%` : '';
+}
+function calcAovValue(collCr, orders) {
+  return orders > 0 ? Math.round((collCr * CRORE) / orders) : NaN;
+}
+function buildYtdTargetMap(mode) {
+  const map = new Map();
+  const add = (exam, grossCr, orders) => {
+    const key = String(exam || '').trim();
+    if (!key) return;
+    if (!map.has(key)) map.set(key, { gross: 0, orders: 0 });
+    const item = map.get(key);
+    item.gross += Number(grossCr) || 0;
+    item.orders += Number(orders) || 0;
+  };
+
+  const th = sourceHeaders('targets');
+  const examI = reportFindLoose(th, 'updated exam');
+  const ordI = mode === 'FY'
+    ? reportFindLoose(th, 'fy ytd orders')
+    : reportFindLoose(th, 'ay ytd orders');
+  const colI = mode === 'FY'
+    ? reportFindLoose(th, 'fy ytd collection')
+    : reportFindLoose(th, 'ay ytd collection');
+  for (const row of sourceRows('targets')) {
+    add(row[examI], colI >= 0 ? (toNum(row[colI]) || 0) / CRORE : 0, ordI >= 0 ? toNum(row[ordI]) || 0 : 0);
+  }
+
+  const ah = sourceHeaders('acTarget');
+  const acExamI = reportFindLoose(ah, 'updated category') >= 0 ? reportFindLoose(ah, 'updated category') : reportFindLoose(ah, 'updated exam');
+  const acOrdI = reportFindLoose(ah, 'ytd orders');
+  const acColI = reportFindLoose(ah, 'ytd collection');
+  for (const row of sourceRows('acTarget')) {
+    add(row[acExamI], acColI >= 0 ? (toNum(row[acColI]) || 0) / CRORE : 0, acOrdI >= 0 ? toNum(row[acOrdI]) || 0 : 0);
+  }
+
+  return map;
+}
+function buildComputedFyTargetMap() {
+  const computed = state.reportMeta.computed;
+  const map = new Map();
+  if (!computed?.headers?.length || !computed?.rows?.length) return map;
+  const h = computed.headers;
+  const examI = reportFind(h, 'Category');
+  const grossI = findSummaryCol(h, ['aop', 'ytd', 'gross']);
+  const ordersI = findSummaryCol(h, ['aop', 'orders', 'ytd']);
+  for (const row of computed.rows) {
+    const exam = String(row[examI] || '').trim();
+    if (!exam) continue;
+    map.set(exam, {
+      gross: grossI >= 0 ? toNum(row[grossI]) || 0 : 0,
+      orders: ordersI >= 0 ? toNum(row[ordersI]) || 0 : 0,
+    });
+  }
+  return map;
+}
+function applyYtdModeToSummary(summary, mode = 'AY') {
+  if (!summary || !summary.headers || mode === 'AY' || !isYtdSummary(summary.headers)) {
+    return {
+      headers: summary.headers,
+      rows: summary.rows.map(r => [...r]),
+      totalRow: summary.totalRow ? [...summary.totalRow] : null,
+    };
+  }
+
+  const headers = summary.headers;
+  const computedMap = mode === 'FY' ? buildComputedFyTargetMap() : new Map();
+  const targetMap = computedMap.size ? computedMap : buildYtdTargetMap(mode);
+  const idx = {
+    exam: reportFind(headers, 'Category'),
+    basis: reportFind(headers, 'AY/FY'),
+    aopYtdGross: findSummaryCol(headers, ['aop', 'ytd', 'gross']),
+    aopYtdNet: findSummaryCol(headers, ['aop', 'ytd', 'net']),
+    achievedYtdGross: findSummaryCol(headers, ['achieved', 'ytd', 'gross']),
+    achievedYtdNet: findSummaryCol(headers, ['achieved', 'ytd', 'net']),
+    aopOrdersYtd: findSummaryColAfter(headers, ['aop', 'orders'], reportFind(headers, 'AY/FY'), ['mtd']),
+    achievedOrdersYtd: findSummaryColAfter(headers, ['achieved', 'orders'], reportFind(headers, 'AY/FY'), ['mtd']),
+    aopAovYtd: findSummaryColAfter(headers, ['aop', 'aov'], reportFind(headers, 'AY/FY')),
+    achievedAovYtd: findSummaryColAfter(headers, ['achieved', 'aov'], reportFind(headers, 'AY/FY')),
+    tyGross: findSummaryCol(headers, ['this year', 'ytd', 'gross']),
+    tyNet: findSummaryCol(headers, ['this year', 'ytd', 'net']),
+    growthColl: findSummaryCols(headers, ['growth%'])[0] ?? -1,
+    tyOrders: findPlainYtdCols(headers, 'This Year YTD')[0] ?? -1,
+    growthOrders: findSummaryCols(headers, ['growth%'])[1] ?? -1,
+    tyAov: findPlainYtdCols(headers, 'This Year YTD')[1] ?? -1,
+  };
+  const pctCols = findSummaryCols(headers, ['achieved%', 'ytd']);
+  idx.achPctYtdColl = pctCols[0] ?? -1;
+  idx.achPctYtdOrders = pctCols[1] ?? -1;
+
+  const set = (row, i, value) => { if (i >= 0) row[i] = value; };
+  const transformRow = rawRow => {
+    const row = [...rawRow];
+    const exam = String(row[idx.exam] || '').trim();
+    const target = targetMap.get(exam);
+    if (!target) {
+      set(row, idx.basis, mode);
+      return row;
+    }
+    const gross = target.gross;
+    const orders = target.orders;
+    const net = gross / 1.18;
+    const achievedGross = toNum(row[idx.achievedYtdGross]) || 0;
+    const achievedNet = toNum(row[idx.achievedYtdNet]) || (achievedGross ? achievedGross / 1.18 : 0);
+    const achievedOrders = toNum(row[idx.achievedOrdersYtd]) || 0;
+    const targetAov = calcAovValue(gross, orders);
+    const achievedAov = calcAovValue(achievedGross, achievedOrders);
+
+    set(row, idx.basis, mode);
+    set(row, idx.aopYtdGross, formatOneDecimal(gross) || 0);
+    set(row, idx.aopYtdNet, formatOneDecimal(net) || 0);
+    set(row, idx.achPctYtdColl, formatPctValue(achievedGross, gross));
+    set(row, idx.aopOrdersYtd, formatWhole(orders) || 0);
+    set(row, idx.achPctYtdOrders, formatPctValue(achievedOrders, orders));
+    set(row, idx.aopAovYtd, Number.isFinite(targetAov) ? formatWhole(targetAov) : '');
+    set(row, idx.achievedAovYtd, Number.isFinite(achievedAov) ? formatWhole(achievedAov) : row[idx.achievedAovYtd]);
+    set(row, idx.tyGross, achievedGross > 0 ? formatOneDecimal(achievedGross) : 0);
+    set(row, idx.tyNet, achievedNet > 0 ? formatOneDecimal(achievedNet) : 0);
+    set(row, idx.tyOrders, achievedOrders > 0 ? formatWhole(achievedOrders) : 0);
+    set(row, idx.tyAov, Number.isFinite(achievedAov) ? formatWhole(achievedAov) : row[idx.tyAov]);
+
+    const lyGross = toNum(row[findSummaryCol(headers, ['last year', 'ytd', 'gross'])]) || 0;
+    const lyOrders = toNum(row[findPlainYtdCols(headers, 'Last Year YTD')[0] ?? -1]) || 0;
+    set(row, idx.growthColl, lyGross > 0 ? `${(((achievedGross - lyGross) / lyGross) * 100).toFixed(1)}%` : '');
+    set(row, idx.growthOrders, lyOrders > 0 ? `${(((achievedOrders - lyOrders) / lyOrders) * 100).toFixed(1)}%` : '');
+    return row;
+  };
+
+  const rows = summary.rows.map(transformRow);
+  const totalRow = summary.totalRow ? [...summary.totalRow] : null;
+  if (totalRow) {
+    const sum = i => i >= 0 ? rows.reduce((s, r) => s + (toNum(r[i]) || 0), 0) : 0;
+    const aopGross = sum(idx.aopYtdGross);
+    const aopOrders = sum(idx.aopOrdersYtd);
+    const achievedGross = sum(idx.achievedYtdGross);
+    const achievedOrders = sum(idx.achievedOrdersYtd);
+    const targetAov = calcAovValue(aopGross, aopOrders);
+    const achievedAov = calcAovValue(achievedGross, achievedOrders);
+    set(totalRow, idx.basis, mode);
+    set(totalRow, idx.aopYtdGross, formatOneDecimal(aopGross) || 0);
+    set(totalRow, idx.aopYtdNet, formatOneDecimal(aopGross / 1.18) || 0);
+    set(totalRow, idx.achPctYtdColl, formatPctValue(achievedGross, aopGross));
+    set(totalRow, idx.aopOrdersYtd, formatWhole(aopOrders) || 0);
+    set(totalRow, idx.achPctYtdOrders, formatPctValue(achievedOrders, aopOrders));
+    set(totalRow, idx.aopAovYtd, Number.isFinite(targetAov) ? formatWhole(targetAov) : '');
+    set(totalRow, idx.achievedAovYtd, Number.isFinite(achievedAov) ? formatWhole(achievedAov) : '');
+    set(totalRow, idx.tyGross, formatOneDecimal(achievedGross) || 0);
+    set(totalRow, idx.tyNet, formatOneDecimal(achievedGross / 1.18) || 0);
+    set(totalRow, idx.tyOrders, formatWhole(achievedOrders) || 0);
+    set(totalRow, idx.tyAov, Number.isFinite(achievedAov) ? formatWhole(achievedAov) : '');
+  }
+  return { headers, rows, totalRow };
+}
+function applyYtdModeSelection(mode) {
+  state.ytdMode = mode === 'FY' ? 'FY' : 'AY';
+  const select = document.getElementById('ytdModeSelect');
+  if (select) select.value = state.ytdMode;
+  const raw = state.reportMeta.rawSummary;
+  if (!raw) return;
+  const adjusted = applyYtdModeToSummary(raw, state.ytdMode);
+  state.headers = adjusted.headers;
+  state.allRows = adjusted.rows;
+  state.colTypes = detectTypes(adjusted.headers, adjusted.rows);
+  state.reportMeta.totalRow = adjusted.totalRow;
+  state.page = 0;
+  initMetricSelector();
+  initFilterPanel();
+  renderOracleKPIs();
+  renderCharts();
+  applyFilter();
+  const activeTab = document.querySelector('.dp-subtab.active');
+  if (activeTab?.dataset.subtab === 'overview') renderActiveReport();
+  updateSidebarInfo();
+}
+function updateYtdModeControl() {
+  const wrap = document.getElementById('ytdModeWrap');
+  const select = document.getElementById('ytdModeSelect');
+  if (!wrap || !select) return;
+  const visible = state.sourceMode === 'auto-summary' && isYtdSummary(state.headers);
+  wrap.style.display = visible ? 'inline-flex' : 'none';
+  select.value = state.ytdMode || 'AY';
+}
 function parseReportDate(v) {
   const s = String(v || '').trim();
   if (!s) return null;
@@ -3520,13 +3753,18 @@ function buildGroupedThead(headers, renderSubHeader) {
   }
   return `<tr class="report-group-row">${groupCells.join('')}</tr><tr class="report-sub-row">${headers.map(renderSubHeader).join('')}</tr>`;
 }
+function tableSectionClass(headers, i) {
+  if (i <= 0) return '';
+  return reportHeaderGroup(headers[i]) !== reportHeaderGroup(headers[i - 1]) ? 'sep-left' : '';
+}
 function reportTable(headers, rows) {
   const clsFor = (h, i) => {
     const low = String(h).toLowerCase();
     const classes = [];
     if (i === 0) classes.push('sticky-col');
     if (i === 1) classes.push('sticky-col-2');
-    if (/^(tgt|target|achv|achieved|last year|this year|ly|total|collection|orders|aov|type)/i.test(low)) classes.push('sep-left');
+    const sectionClass = tableSectionClass(headers, i);
+    if (sectionClass) classes.push(sectionClass);
     if (/%|growth|achievement/.test(low)) classes.push('sep-soft');
     return classes.join(' ');
   };
@@ -4235,6 +4473,9 @@ document.addEventListener('DOMContentLoaded', () => {
       switchSubtab('overview');
       renderActiveReport();
     });
+  });
+  document.getElementById('ytdModeSelect')?.addEventListener('change', e => {
+    applyYtdModeSelection(e.target.value);
   });
   document.getElementById('saveReportPng')?.addEventListener('click', () => {
     const canvas = document.getElementById('reportChart');
